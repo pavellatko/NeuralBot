@@ -1,18 +1,19 @@
 #!/usr/bin/env python
 
+import json
 import os
+import threading
+import time
+
+import deeppy as dp
 import numpy as np
 import scipy.misc
-import deeppy as dp
-
 from sqlalchemy.ext.automap import automap_base
+
+import response
 from matconvnet import vgg_net
 from style_network import StyleNetwork
 
-import json
-import time
-import response
-import threading
 
 def weight_tuple(tuples_array):
     try:
