@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import json
 import os
 import threading
@@ -111,7 +109,7 @@ def init_args(given_args):
     parser = ArgumentParser()
     parser.add_argument('subject', required=True, type=str)
     parser.add_argument('style', required=True, type=str)
-    parser.add_argument('output', default='out.png', type=str)
+    parser.add_argument('output', required=True, type=str)
     parser.add_argument('init', default=None, type=str)
     parser.add_argument('init_noise', default=0.0, type=float_range)
     parser.add_argument('random_seed', default=None, type=int)
@@ -164,7 +162,7 @@ class ImageProcessor(threading.Thread):
                 id = cur_img.ID
                 given_args = json.loads(cur_img.Args)
 
-                img_info = session.query(Image).filter(Image.ID==id).first()
+                img_info = session.query(Image).filter(Image.ID == id).first()
                 given_args['subject'] = img_info.Subject
                 given_args['style'] = img_info.Style
 
