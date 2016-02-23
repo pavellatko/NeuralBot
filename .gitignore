@@ -4,3 +4,4 @@ imagenet-vgg-verydeep-19.mat
 animation/*
 images/*
 out.png
+*.pyc
