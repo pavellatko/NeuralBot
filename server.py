@@ -7,9 +7,6 @@ from sqlalchemy.ext.automap import automap_base
 
 from json import dumps
 
-
-app = Flask(__name__)
-
 connection = Connector()
 Session = connection.Session
 engine = connection.engine
@@ -21,6 +18,8 @@ Queue = Base.classes.queue
 
 worker_thread = neural_worker.ImageProcessor(engine, Session)
 worker_thread.start()
+
+app = Flask(__name__)
 
 
 @app.errorhandler(404)
@@ -49,7 +48,7 @@ def create_task():
     db_session.refresh(new_img)
     img_id = new_img.ID
 
-    data['args']['output'] = '../images/output_{0}.jpg'.format(img_id)
+    data['args']['output'] = 'images/output_{0}.jpg'.format(img_id)
 
     try:
         with open('images/subject_{0}.jpg'.format(img_id), 'wb') as subj_file, \
@@ -59,14 +58,20 @@ def create_task():
     except:
         abort(400)
 
-    new_img.Style = '../images/style_{0}.jpg'.format(img_id)
-    new_img.Subject = '../images/subject_{0}.jpg'.format(img_id)
+    new_img.Style = 'images/style_{0}.jpg'.format(img_id)
+    new_img.Subject = 'images/subject_{0}.jpg'.format(img_id)
 
     db_session.Add(Queue(ID=img_id, Args=dumps(data['args'])))
     db_session.commit()
 
     return jsonify({'id': img_id}), 201
 
-if __name__ == '__main__':
-    app.run(debug=True)
 
+app.run(debug=True, port=5002)
+
+try:
+    while worker_thread.is_alive:
+        worker_thread.join(0.1)
+except KeyboardInterrupt:
+    print "Ctrl-c received! Sending kill to threads..."
+    worker_thread.stop()

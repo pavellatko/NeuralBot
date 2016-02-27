@@ -24,7 +24,6 @@ def weight_tuple(tuples_array):
         raise TypeError('weights must by "int,float"')
 
 
-
 def float_range(x):
     x = float(x)
     if x < 0.0 or x > 1.0:
@@ -83,6 +82,7 @@ class ArgumentContainer(object):
         for arg, val in arguments.items():
             setattr(self, arg, val)
 
+
 class ArgumentParser(object):
     def __init__(self, arguments=[]):
         self.arguments = arguments
@@ -97,13 +97,14 @@ class ArgumentParser(object):
 
         for arg in self.arguments:
             if arg.name not in given_args and arg.required:
-                raise ValueError('Value if required for {0} argument!'.format(arg.name))
+                raise ValueError('Value is required for {0} argument!'.format(arg.name))
             if arg.choices:
                 if arg.value not in arg.choices:
                     raise ValueError('Value for {0} argument is incorrect!'.format(arg.name))
             args[arg.name] = arg.type(given_args[arg.name]) if arg.name in given_args else arg.value
 
         return ArgumentContainer(args)
+
 
 def init_args(given_args):
     parser = ArgumentParser()
@@ -142,11 +143,11 @@ class ImageProcessor(threading.Thread):
         return self._stop.isSet()
 
     def run(self):
-
+        print(threading.current_thread())
         Session = self.Session
         engine = self.engine
 
-        network = 'imagenet-vgg-verydeep-19.mat'
+        network = 'neural_art/imagenet-vgg-verydeep-19.mat'
         session = Session()
         Base = automap_base()
         Base.prepare(engine, reflect=True)
@@ -155,10 +156,12 @@ class ImageProcessor(threading.Thread):
         Queue = Base.classes.queue
 
         while not self.stopped():
+            print('I am alive!')
             cur_img = session.query(Queue).first()
             if not cur_img:
                 time.sleep(1)
             else:
+                print('Getting')
                 id = cur_img.ID
                 given_args = json.loads(cur_img.Args)
 
@@ -178,7 +181,7 @@ class ImageProcessor(threading.Thread):
                     np.random.seed(args.random_seed)
 
                 layers, pixel_mean = vgg_net(network, pool_method=args.pool_method)
-
+                print('Init!')
                 # Inputs
                 style_img = imread(args.style) - pixel_mean
                 subject_img = imread(args.subject) - pixel_mean
@@ -195,17 +198,18 @@ class ImageProcessor(threading.Thread):
                 net = StyleNetwork(layers, to_bc01(init_img), to_bc01(subject_img),
                                    to_bc01(style_img), subject_weights, style_weights,
                                    args.smoothness)
-
+                print('Init 1')
                 # Repaint image
                 def net_img():
                     return to_rgb(net.image) + pixel_mean
 
                 if not os.path.exists(args.animation):
                     os.mkdir(args.animation)
-
+                print('Init 2')
                 params = net.params
                 learn_rule = dp.Adam(learn_rate=args.learn_rate)
                 learn_rule_states = [learn_rule.init_state(p) for p in params]
+                print('Inited! Starting...')
                 for i in range(args.iterations):
                     img_info.Status = response.image_iterations_progress(i + 1, args.iterations)
                     Session.commit()
@@ -217,4 +221,4 @@ class ImageProcessor(threading.Thread):
                 imsave(args.output, net_img())
                 img_info.Status = response.image_processing_ended()
                 Session.commit()
-
+        print('I am dead :(')
