@@ -156,7 +156,7 @@ class ImageProcessor(threading.Thread):
         Queue = Base.classes.queue
 
         while not self.stopped():
-            print('I am alive!')
+            #print('I am alive!')
             cur_img = session.query(Queue).first()
             if not cur_img:
                 time.sleep(1)
@@ -221,4 +221,4 @@ class ImageProcessor(threading.Thread):
                 imsave(args.output, net_img())
                 img_info.Status = response.image_processing_ended()
                 Session.commit()
-        print('I am dead :(')
+        #print('I am dead :(')
