@@ -1,25 +1,8 @@
 from flask import Flask, make_response, jsonify, abort, Response, request
 
-from db import Connector
-from neural_art import neural_worker
-
-from sqlalchemy.ext.automap import automap_base
-
 from json import dumps
 
-connection = Connector()
-Session = connection.Session
-engine = connection.engine
-db_session = Session()
-Base = automap_base()
-Base.prepare(engine, reflect=True)
-Image = Base.classes.images
-Queue = Base.classes.queue
-
-worker_thread = neural_worker.ImageProcessor(engine, Session)
-worker_thread.start()
-
-app = Flask(__name__)
+from server import db_session, Image, Queue, app
 
 
 @app.errorhandler(404)
@@ -65,13 +48,3 @@ def create_task():
     db_session.commit()
 
     return jsonify({'id': img_id}), 201
-
-
-app.run(debug=True, port=5002)
-
-try:
-    while worker_thread.is_alive:
-        worker_thread.join(0.1)
-except KeyboardInterrupt:
-    print "Ctrl-c received! Sending kill to threads..."
-    worker_thread.stop()
