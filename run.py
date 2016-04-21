@@ -1,7 +1,9 @@
 import server
+from config import *
 from server import worker_thread
+server.rest.app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 worker_thread.start()
-server.rest.app.run(port=8080)
+server.rest.app.run(port=5005)
 
 try:
     while worker_thread.is_alive:

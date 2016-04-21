@@ -2,6 +2,8 @@ import json
 import os
 import threading
 import time
+import multiprocessing
+from multiprocessing import Process
 
 import deeppy as dp
 import numpy as np
@@ -135,12 +137,16 @@ class ImageProcessor(threading.Thread):
         self.engine = engine
         self.Session = Session
         self._stop = threading.Event()
+        self._skip = False
 
     def stop(self):
-            self._stop.set()
+        self._stop.set()
+
+    def skip(self):
+        self._skip = True
 
     def stopped(self):
-        return self._stop.isSet()
+        return self._stop.is_set()
 
     def run(self):
         print(threading.current_thread())
@@ -156,18 +162,17 @@ class ImageProcessor(threading.Thread):
         Queue = Base.classes.queue
 
         while not self.stopped():
-            #print('I am alive!')
             cur_img = session.query(Queue).first()
             if not cur_img:
                 time.sleep(1)
             else:
-                print('Getting')
                 id = cur_img.ID
                 given_args = json.loads(cur_img.Args)
 
                 img_info = session.query(Image).filter(Image.ID == id).first()
                 given_args['subject'] = img_info.Subject
                 given_args['style'] = img_info.Style
+                given_args['output'] = img_info.Result
 
                 args = init_args(given_args)
 
@@ -181,7 +186,6 @@ class ImageProcessor(threading.Thread):
                     np.random.seed(args.random_seed)
 
                 layers, pixel_mean = vgg_net(network, pool_method=args.pool_method)
-                print('Init!')
                 # Inputs
                 style_img = imread(args.style) - pixel_mean
                 subject_img = imread(args.subject) - pixel_mean
@@ -198,19 +202,19 @@ class ImageProcessor(threading.Thread):
                 net = StyleNetwork(layers, to_bc01(init_img), to_bc01(subject_img),
                                    to_bc01(style_img), subject_weights, style_weights,
                                    args.smoothness)
-                print('Init 1')
+
                 # Repaint image
                 def net_img():
                     return to_rgb(net.image) + pixel_mean
 
                 if not os.path.exists(args.animation):
                     os.mkdir(args.animation)
-                print('Init 2')
                 params = net.params
                 learn_rule = dp.Adam(learn_rate=args.learn_rate)
                 learn_rule_states = [learn_rule.init_state(p) for p in params]
-                print('Inited! Starting...')
                 for i in range(args.iterations):
+                    if self._skip:
+                        break
                     img_info.Status = response.image_iterations_progress(i + 1, args.iterations)
                     Session.commit()
                     imsave(os.path.join(args.animation, '%.4d.png' % i), net_img())
@@ -218,7 +222,8 @@ class ImageProcessor(threading.Thread):
                     for param, state in zip(params, learn_rule_states):
                         learn_rule.step(param, state)
                     print('Iteration: %i, cost: %.4f' % (i, cost))
-                imsave(args.output, net_img())
-                img_info.Status = response.image_processing_ended()
+                if not self._skip:
+                    imsave(args.output, net_img())
+                    img_info.Status = response.image_processing_ended()
+                self._skip = False
                 Session.commit()
-        #print('I am dead :(')
