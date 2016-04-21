@@ -1,6 +1,6 @@
 from flask import Flask, make_response, jsonify, abort, Response, request, send_file
 from json import dumps
-from server import db_session, Image, Queue, app
+from server import db_session, Image, Queue, app, worker_thread
 from config import *
 import uuid, os, json
 
@@ -19,6 +19,11 @@ def add_img_to_queue(id, subject, style, args, result):
     db_session.add(new_img)
     db_session.add(Queue(ID=id, Args=args))
     db_session.commit()
+
+@app.errorhandler(404)
+def not_found(error):
+    return make_response(jsonify({'success': False,
+                                  'error': 'Not found'}), 404)
 
 
 @app.route('/', methods=['GET'])
@@ -67,14 +72,17 @@ def delete_image(image_id):
     if not cur_img:
         abort(404)
     else:
-        os.remove(ROOT_PATH + cur_img.Subjet)
+        if cur_img.Status not in ['queued', 'done']:
+            worker_thread.skip()
+        os.remove(ROOT_PATH + cur_img.Subject)
         os.remove(ROOT_PATH + cur_img.Style)
         try:
             os.remove(ROOT_PATH + cur_img.Result)
         except:
             pass
-
         db_session.delete(cur_img)
+        db_session.commit()
+        return jsonify({'success': True}), 200
 
 
 @app.route('/api/image', methods=['POST'])
@@ -100,7 +108,7 @@ def create_task():
         style.save(style_name)
         subject.save(subject_name)
         add_img_to_queue(id, subject_name, style_name, args, result_name)
-        return jsonify({'id': id}), 201
+        return jsonify({'success': True, 'id': id}), 201
     else:
         abort(400)
 
