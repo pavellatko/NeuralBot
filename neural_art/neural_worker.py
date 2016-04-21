@@ -3,6 +3,7 @@ import os
 import threading
 import time
 import multiprocessing
+from multiprocessing import Process
 
 import deeppy as dp
 import numpy as np
@@ -141,7 +142,7 @@ class ImageProcessor(threading.Thread):
             self._stop.set()
 
     def stopped(self):
-        return self._stop.isSet()
+        return self._stop.is_set()
 
     def run(self):
         print(threading.current_thread())
@@ -197,6 +198,7 @@ class ImageProcessor(threading.Thread):
                 net = StyleNetwork(layers, to_bc01(init_img), to_bc01(subject_img),
                                    to_bc01(style_img), subject_weights, style_weights,
                                    args.smoothness)
+
                 # Repaint image
                 def net_img():
                     return to_rgb(net.image) + pixel_mean
@@ -217,4 +219,3 @@ class ImageProcessor(threading.Thread):
                 imsave(args.output, net_img())
                 img_info.Status = response.image_processing_ended()
                 Session.commit()
-        #print('I am dead :(')

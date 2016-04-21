@@ -14,11 +14,6 @@ def get_ext(filename):
     return filename.rsplit('.', 1)[1]
 
 
-@app.errorhandler(404)
-def not_found(error):
-    return make_response(jsonify({'error': 'Not found'}), 404)
-
-
 def add_img_to_queue(id, subject, style, args, result):
     new_img = Image(ID=id, Subject=subject, Style=style, Status='{"status": "queued"}', Result=result)
     db_session.add(new_img)
@@ -64,6 +59,22 @@ def get_image(image_id):
         return send_file(ROOT_PATH + cur_img.Result, 'output' + get_ext(cur_img.Result))
     else:
         abort(404)
+
+
+@app.route('/api/image/<image_id>', methods=['DELETE'])
+def delete_image(image_id):
+    cur_img = db_session.query(Image).filter(Image.ID==image_id).first()
+    if not cur_img:
+        abort(404)
+    else:
+        os.remove(ROOT_PATH + cur_img.Subjet)
+        os.remove(ROOT_PATH + cur_img.Style)
+        try:
+            os.remove(ROOT_PATH + cur_img.Result)
+        except:
+            pass
+
+        db_session.delete(cur_img)
 
 
 @app.route('/api/image', methods=['POST'])
