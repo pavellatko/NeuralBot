@@ -1,4 +1,3 @@
-print(1)
 from sqlalchemy.ext.automap import automap_base
 
 from database.db import Connector

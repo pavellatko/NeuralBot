@@ -1,13 +1,51 @@
-from flask import Flask, make_response, jsonify, abort, Response, request
-
+from flask import Flask, make_response, jsonify, abort, Response, request, send_file
 from json import dumps
-
 from server import db_session, Image, Queue, app
+from config import *
+import uuid, os, json
+
+
+def allowed_file(filename):
+    return '.' in filename and \
+           get_ext(filename) in ALLOWED_EXTENSIONS
+
+
+def get_ext(filename):
+    return filename.rsplit('.', 1)[1]
 
 
 @app.errorhandler(404)
 def not_found(error):
     return make_response(jsonify({'error': 'Not found'}), 404)
+
+
+def add_img_to_queue(id, subject, style, args, result):
+    new_img = Image(ID=id, Subject=subject, Style=style, Status='{"status": "queued"}', Result=result)
+    db_session.add(new_img)
+    db_session.add(Queue(ID=id, Args=args))
+    db_session.commit()
+
+
+@app.route('/', methods=['GET'])
+def upload_page():
+    return '''<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>upload</title>
+</head>
+<body>
+  <form action="/api/image" method="post" enctype="multipart/form-data">
+  <p>Image
+  <p><input type="file" name="subject">
+  <p>Style
+  <p><input type="file" name="style">
+  <p>Arguments in JSON
+  <p><input type="text" name="args">
+  <p><button type="submit">Submit</button>
+</form>
+</body>
+</html>'''
 
 
 @app.route('/api/image/<image_id>/status', methods=['GET'])
@@ -18,33 +56,40 @@ def get_image_status(image_id):
     return Response(img_info.Status, mimetype='application/json')
 
 
+@app.route('/api/image/<image_id>', methods=['GET'])
+def get_image(image_id):
+    cur_img = db_session.query(Image).filter(Image.ID==image_id).first()
+    cur_status = json.loads(cur_img.Status)
+    if cur_status['status'] == 'done':
+        return send_file(ROOT_PATH + cur_img.Result, 'output' + get_ext(cur_img.Result))
+    else:
+        abort(404)
+
+
 @app.route('/api/image', methods=['POST'])
 def create_task():
-    if not request.json or not 'subject' or not 'style' in request.json:
-        abort(400)
-    data = request.json
-    if 'args' not in data:
-        data['args'] = {}
-    new_img = Image(Status='{"status": "queued"}')
-    db_session.add(new_img)
-    db_session.commit()
-    db_session.refresh(new_img)
-    img_id = new_img.ID
-
-    data['args']['output'] = 'images/output_{0}.jpg'.format(img_id)
-
-    try:
-        with open('images/subject_{0}.jpg'.format(img_id), 'wb') as subj_file, \
-                open('images/style_{0}.jpg'.format(img_id), 'wb') as style_file:
-            subj_file.write(data['subject'].decode('base64'))
-            style_file.write(data['style'].decode('base64'))
-    except:
+    if 'style' not in request.files or 'subject' not in request.files or \
+            not request.files['style'] or not request.files['subject']:
         abort(400)
 
-    new_img.Style = 'images/style_{0}.jpg'.format(img_id)
-    new_img.Subject = 'images/subject_{0}.jpg'.format(img_id)
+    style = request.files['style']
+    subject = request.files['subject']
+    if 'args' in request.form:
+        args = request.form['args'] or '{}'
+    else:
+        args = '{}'
 
-    db_session.Add(Queue(ID=img_id, Args=dumps(data['args'])))
-    db_session.commit()
+    id = str(uuid.uuid4())
 
-    return jsonify({'id': img_id}), 201
+    if allowed_file(style.filename) and allowed_file(subject.filename):
+        style_name = os.path.join(UPLOAD_FOLDER, '{}_style.{}'.format(id, get_ext(style.filename)))
+        subject_name = os.path.join(UPLOAD_FOLDER, '{}_subject.{}'.format(id, get_ext(subject.filename)))
+        result_name = os.path.join(UPLOAD_FOLDER, '{}_result.{}'.format(id, get_ext(subject.filename)))
+
+        style.save(style_name)
+        subject.save(subject_name)
+        add_img_to_queue(id, subject_name, style_name, args, result_name)
+        return jsonify({'id': id}), 201
+    else:
+        abort(400)
+
