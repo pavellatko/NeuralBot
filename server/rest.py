@@ -59,6 +59,8 @@ def get_image_status(image_id):
 @app.route('/api/image/<image_id>', methods=['GET'])
 def get_image(image_id):
     cur_img = db_session.query(Image).filter(Image.ID==image_id).first()
+    if not cur_img:
+        abort(404)
     cur_status = json.loads(cur_img.Status)
     if cur_status['status'] == 'done':
         return send_file(ROOT_PATH + cur_img.Result, 'output' + get_ext(cur_img.Result))
